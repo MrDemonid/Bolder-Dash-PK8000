@@ -1,0 +1,68 @@
+/*
+  инициализация графики
+*/
+GrApp__init: procedure external;
+end;
+
+/*
+  возврат в текстовый видеорежим
+*/
+GrApp_Close: procedure external;
+end;
+
+
+/*
+  очистка битового массива (всех трёх знакогенераторов)
+*/
+GrApp_Cls: procedure external;
+end;
+
+/*
+  очистка массива цвета
+*/
+GrApp_ClsCol: procedure(col) external;
+  declare
+    col byte;
+end;
+
+
+
+
+/*
+  прокрутка экрана влево на одно знакоместо
+  (прокручивается буфер экрана)
+*/
+GrApp_ScrollLeft: procedure external;
+end;
+
+/*
+  прокрутка экрана вправо на одно знакоместо
+  (прокручивается буфер экрана)
+*/
+GrApp_ScrollRight: procedure external;
+end;
+
+
+/*
+  вывод тайла 16x12 на экран в заданную позицию
+  на входе:
+    x in [0..30]
+    y in [0..30]
+*/
+GrApp_DrawTile: procedure (x, y, tile) external;
+  declare
+    (x, y) byte,
+    tile address;
+end;
+
+/*
+  гасит тайл 16x12 на экране в заданной позиции
+  на входе:
+    x in [0..30]
+    y in [0..30]
+*/
+GrApp_HideTile: procedure (x, y) external;
+  declare
+    (x, y) byte;
+end;
+

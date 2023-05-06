@@ -1,0 +1,80 @@
+/*
+  открытие файла (имя в формате CP/M: 'FILENAMEEXT')
+  на выходе:
+     0 - ошибка открытия, иначе успешно
+*/
+fOpen: procedure(fName) byte external;
+  declare
+    fName  address;
+end;
+
+/*
+  создание файла
+  на выходе:
+     0 - ошибка создания, иначе успешно
+
+  WARNING! наличие существующего файла система не проверяет, поэтому
+           нужно самому в этом удостовериться и удалить, иначе
+           будет создан дубликат с таким же именем!
+*/
+fCreate: procedure(fName) byte external;
+  declare
+    fName  address;
+end;
+
+/*
+  удаление файла
+  на выходе:
+     A  - 0: ошибка создания
+*/
+fDelete: procedure(fName) byte external;
+  declare
+    fName  address;
+end;
+
+
+fClose: procedure external;
+end;
+
+/*
+  чтение из открытого файла
+  на входе:
+     Buf$Ptr - буфер
+     Size    - размер в секторах по 128 байт
+  на выходе:
+     флаг завершения: 0 - ошибка, -1 - все успешно считалось
+*/
+fRead: procedure(Buf$Ptr, Size) byte external;
+  declare
+    Buf$Ptr address,
+    Size address;
+end;
+
+
+/*
+  запись в открытый файл
+  на входе:
+     Buf$Ptr - буфер
+     Size    - размер в секторах по 128 байт
+  на выходе:
+     флаг завершения: 0 - ошибка, -1 - все успешно записано
+*/
+fWrite: procedure(Buf$Ptr, Size) byte external;
+  declare
+    Buf$Ptr address,
+    Size address;
+end;
+
+
+/*
+  вычисление контрольной суммы сектора (128 байт)
+  на входе:
+     Buf$Ptr - сектор
+  на выходе:
+     контрольная сумма 126 байт сектора
+*/
+
+fCRC: procedure(Buf$Ptr) address external;
+  declare
+    Buf$Ptr address;
+end;

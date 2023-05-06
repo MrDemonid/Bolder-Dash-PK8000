@@ -1,0 +1,1 @@
+:f1:bolder.obj,:f1:labir.obj,:f1:grapp.obj,:f1:ctrl.obj,:f1:cons.obj,:f1:rsrc.obj,:f1:timer.obj,:f1:sound.obj,:f1:fileio.obj,:f2:plm80.lib TO :f1:bolder.lnk

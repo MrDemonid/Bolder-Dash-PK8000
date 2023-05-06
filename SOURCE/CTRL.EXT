@@ -1,0 +1,95 @@
+declare
+  Ctrl_ScanSpace literally '20h',
+  Ctrl_ScanEnter literally '0BFh',
+  Ctrl_ScanEsc   literally '0BAh',
+  Ctrl_ScanF5    literally '0B9h',
+  Ctrl_ScanBkSpc literally '0BDh';
+
+
+declare
+  Timer_ticks   byte external,
+  Ctrl_KeyUp    byte external,
+  Ctrl_KeyLeft  byte external,
+  Ctrl_KeyRight byte external,
+  Ctrl_KeyDown  byte external;
+
+
+
+
+/*
+  Менеджер прерываний. Заменяет стандартный обработчик BIOS.
+*/
+
+Ctrl__init: procedure external;
+end;
+
+Ctrl_Close: procedure external;
+end;
+
+
+/*
+  Установка нового вектора прерывания
+  pVec  - адрес нового вектора
+  pSave - адрес для сохранения перехода на старый вектор (3 байта)
+*/
+Ctrl_SetVector: procedure(pVec, pSave) external;
+  declare
+    pVec address,
+    pSave address;
+end;
+
+/*
+  Удаление последнего вектора
+  pOldVec - адрес сохраненного вектора
+*/
+Ctrl_DelVector: procedure(pOldVec) external;
+  declare
+    pOldVec address;
+end;
+
+
+
+/*****************************************************************************
+                                 КЛАВИАТУРА
+ *****************************************************************************/
+
+Ctrl_SetMenuKeyb: procedure external;
+end;
+
+Ctrl_DelMenuKeyb: procedure external;
+end;
+
+/*
+  проверка наличия в буфере клавиатуры кода нажатой клавиши
+  на выходе:
+     0 - буфер пуст
+*/
+Ctrl_PressAnyKey: procedure byte external;
+end;
+
+/*
+  чтение символа с клавиатуры с ожиданием (если буфер был пуст)
+*/
+Ctrl_ReadKey: procedure byte external;
+end;
+
+
+/*
+  чтение клавиатуры, возвращает её текущее состояние
+*/
+Ctrl_Get: procedure byte external;
+end;
+
+Ctrl_GetCustom: procedure byte external;
+end;
+
+
+
+/*****************************************************************************
+                                   РАЗНОЕ
+ *****************************************************************************/
+
+Abs: procedure (n) byte external;
+  declare
+    n byte;
+end;

@@ -1,0 +1,27 @@
+declare
+  Timer_Mul literally '500',      /* 50.0 */
+  Timer_Div literally '182';      /* 18.2 */
+
+
+
+/*
+  Задает интервал ожидания в 1/50 секунды
+*/
+Timer_Start: procedure (tim) external;
+  declare
+    tim byte;
+end;
+
+/*
+  Ждет срабатывания таймера, заданного ранее через Timer_Start
+*/
+Timer_Until: procedure external;
+end;
+
+/*
+  возвращает текущий статус таймера:
+  0  - срок истёк;
+  >0 - пока еще ждём
+*/
+Timer_Check: procedure byte external;
+end;

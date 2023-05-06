@@ -1,0 +1,4 @@
+lab_Play: procedure (room) address external;
+  declare
+    room byte;
+end;

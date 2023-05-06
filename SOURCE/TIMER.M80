@@ -1,0 +1,46 @@
+$title  ('Wait timer routine')
+        name    Timer
+
+        cseg
+
+
+        public Timer_Start
+        public Timer_Until
+        public Timer_Check
+
+        extrn Timer_ticks
+
+
+;------------------------------------------------------------------------
+; Задает интервал ожидания в 1/50 секунды
+; на входе:
+;    C - время в 1/50 секунды
+;------------------------------------------------------------------------
+Timer_Start:
+        mov     A, C
+        cma
+        inr     A
+        sta     Timer_ticks
+        ret
+
+
+;------------------------------------------------------------------------
+; Ждет пока Timer_ticks не станет больше или равным нулю
+;------------------------------------------------------------------------
+Timer_Until:
+        lda     Timer_ticks
+        ani     80h
+        rz
+        ei
+        hlt
+        jmp     Timer_Until
+
+Timer_Check:
+        ei
+        lda     Timer_ticks
+        ani     80h
+        ret
+
+
+end
+

@@ -1,0 +1,77 @@
+declare
+  Black    literally '0',
+  Blue     literally '4',
+  Red      literally '8',
+  Magenta  literally '12',
+  Green    literally '2',
+  Cyan     literally '6',
+  Olive    literally '11',
+  White    literally '14',
+  LBlue    literally '5',
+  LRed     literally '9',
+  LMagenta literally '13',
+  LGreen   literally '3',
+  LCyan    literally '7',
+  Yellow   literally '10',
+  LWhite   literally '15';
+
+
+declare
+  Console_x   byte,
+  Console_y   byte,
+  Console_atr byte;
+
+
+Con_At: procedure (x, y) external;
+  declare
+    (x, y) byte;
+end;
+
+Con_ShowCursor: procedure external;
+end;
+
+Con_HideCursor: procedure external;
+end;
+
+Con_Colors: procedure (col) external;
+  declare
+    col byte;
+end;
+
+
+
+Con_WriteCh: procedure (ch) external;
+  declare
+    ch byte;
+end;
+
+/*
+  забой
+*/
+Con_BackSpc: procedure external;
+end;
+
+
+/*
+  вывод строки, поддерживающей командные последовательности:
+     <ESC>Y<x><y> - прямое позиционирование курсора
+     <ЕSС>F<b><f> - установка текущего цвета
+     <ESC>C<f>    - установка цвета текста
+*/
+Con_WriteStr: procedure (str) external;
+  declare
+    str address;
+end;
+
+Con_WriteDec: procedure (num) external;
+  declare
+    num address;
+end;
+
+Con_WriteKey: procedure (key) external;
+  declare
+    key byte;
+end;
+
+
+

@@ -1,0 +1,127 @@
+$title  ('Sounds game')
+        name    Sound
+
+        cseg
+
+
+        public Snd_Death
+        public Snd_DropObject
+        public Snd_GetAlmas
+        public Snd_KeyPressed
+        public Snd_TitleNext
+
+
+
+;  на входе:
+;     HL - len;
+;     DE - freq;
+;  saved:
+;     BC
+BEEPER:
+        push    B
+        di
+    lensndlp:
+        dcx     H
+        mov     A, L
+        ora     H
+        jz      snddone
+        mov     B, D
+        mov     C, E
+    sndonlp:
+        mvi     A, 80h
+        out     82h
+        dcx     B
+        mov     A, C
+        ora     B
+        jnz     sndonlp
+        mov     B, D
+        mov     C, E
+    sndofflp:
+        mvi     A, 0
+        out     82h
+        dcx     B
+        mov     A, C
+        ora     B
+        jnz     sndofflp
+        jmp     lensndlp
+    snddone:
+        ei
+        pop     B
+        ret
+
+
+
+Snd_Death:
+        mvi     B, 12
+        mvi     C, 3
+    snddeathlp:
+        mov     E, B
+        mvi     D, 0
+        lxi     H, 5
+        call    BEEPER
+        mov     A, B
+        add     A
+        mov     B, A
+        inr     B
+        dcr     C
+        jnz     snddeathlp
+        ret
+
+
+;Sound_DropStoneOrAlmas
+Snd_DropObject:
+        lxi     D, 40
+        lxi     H, 2
+        call    BEEPER          ; Sound(2, 40)
+        ret
+; freq: 40, len 2, cycles = 160
+
+Snd_GetAlmas:
+        lxi     D,18
+        lxi     H, 4
+        call    BEEPER          ; Sound(4, (x+y)*2 + 60)
+        ret
+; freqL 20, len = 4, cycle = 160
+
+Snd_KeyPressed:
+        lxi     D, 61
+        lxi     H, 8
+        call    BEEPER
+        ret
+
+
+Snd_TitleNext:
+        lhld    titidx
+        inx     H
+        shld    titidx          ; m = ++ p;
+        lxi     D, 0            ; k = 0
+    sndtitlp:
+        mov     A, L
+        ora     H
+        jz      sndtitbeep
+        mov     A, H
+        ora     A
+        rar
+        mov     H, A
+        mov     A, L
+        rar
+        mov     L, A            ; m >>= 1
+        jnc     sndtitlp
+        inx     D
+        jmp     sndtitlp
+    sndtitbeep:
+        xchg
+        dad     H
+        dad     H               ; HL = k << 4
+        lxi     D, 30
+        dad     D
+        xchg
+        lxi     H, 30
+        jmp     BEEPER
+titidx: dw 0
+
+end
+
+
+
+

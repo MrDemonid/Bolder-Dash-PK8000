@@ -1,0 +1,20 @@
+Snd_Death: procedure (y) external;
+  declare
+    y byte;
+end;
+
+Snd_DropObject: procedure (y) external;
+  declare
+    y byte;
+end;
+
+Snd_GetAlmas: procedure (coord) external;
+  declare
+    coord byte;
+end;
+
+Snd_KeyPressed: procedure external;
+end;
+
+Snd_TitleNext: procedure external;
+end;

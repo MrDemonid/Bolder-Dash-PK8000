@@ -1,0 +1,629 @@
+/*****************************************************************************
+ *                                                                           *
+ * CP/M game "Bolder Dash" for the PK8000 (full version)                     *
+ * Copyright (C) 2023 Andrey Hlus                                            *
+ *                                                                           *
+ *****************************************************************************/
+GAME: DO;
+
+$CODE
+
+/* формируем переход на начало кода */
+declare JUMP byte data(0C3h);
+declare JADR address data(.MYENTRY); /* with default CP/M system stack */
+/*declare JADR address data(.MYENTRY-3);  with stack initialize */
+
+
+$INCLUDE(:F1:FILEIO.EXT)
+
+$INCLUDE(:F1:CTRL.EXT)
+$INCLUDE(:F1:GRAPP.EXT)
+$INCLUDE(:F1:CONS.EXT)
+$INCLUDE(:F1:RSRC.EXT)
+$INCLUDE(:F1:SOUND.EXT)
+$INCLUDE(:F1:TIMER.EXT)
+
+$INCLUDE(:F1:LABIR.EXT)
+
+
+
+declare
+  Boot address data(0);
+
+
+declare
+  startLevel byte,
+  menu       byte,
+  pressed    byte;
+
+
+/*
+  главное меню
+*/
+declare
+    MENU_SY    literally '5',           /* начало меню по Y */
+    SELLEV_SY  literally 'MENU_SY+5',   /* начало надписи выбора уровня по Y */
+
+    COL_TEXT   literally 'LCyan',
+    COL_TITLE  literally 'LMagenta',
+    COL_NAMES  literally 'Olive',
+    COL_STRING literally 'LRed';
+
+
+declare
+  strAbout(*) byte data (
+    1Bh,'Y',0,0,1Bh,'C',COL_TEXT, 'This game called ', 1Bh,'C',COL_TITLE, '"Bolder Dash"',
+    1Bh,'Y',0,1,1Bh,'C',COL_TEXT, 'was originally developed by',
+    1Bh,'Y',0,2,1Bh,'C',COL_NAMES, 'A.V.Melentiev', 1Bh,'C',COL_TEXT, ' for the Soviet',
+    1Bh,'Y',0,3, 'computer ', 1Bh,'C',COL_STRING, '"Elektronika BK-0010"', 1Bh,'C',COL_TEXT, '.',
+    1Bh,'Y',0,4,1Bh,'C',COL_NAMES, 'Wladimir Mutel', 1Bh,'C',COL_TEXT, ', inspired by the',
+    1Bh,'Y',0,5, 'game, performed its manual',
+    1Bh,'Y',0,6, 'disassembly and porting to the',
+    1Bh,'Y',0,7, 'Soviet computer ', 1Bh,'C',COL_STRING, '"Poisk-1"',
+    1Bh,'Y',0,8,1Bh,'C',COL_TEXT, '(IBM XT clone).',
+    1Bh,'Y',0,9,1Bh,'C',COL_NAMES, 'Oleg N. Cher', 1Bh,'C',COL_TEXT, ' ported ',
+                1Bh,'C',COL_NAMES, 'Mutel''s', 1Bh,'C',COL_TEXT, ' game',
+    1Bh,'Y',0,10, 'to the ', 1Bh,'C',COL_STRING, '"ZX Spectrum"', 1Bh,'C',COL_TEXT, '.',
+    1Bh,'Y',0,11, 'The game was adapted for the',
+    1Bh,'Y',0,12,1Bh,'C',COL_STRING, '"PK8000"', 1Bh,'C',COL_TEXT, ' by ',
+                 1Bh,'C',COL_NAMES, 'Andrey Hlus', 1Bh,'C',COL_TEXT, '.',
+    1Bh,'Y',0,13, 'All levels for the game are',
+    1Bh,'Y',0,14, 'provided by ', 1Bh,'C',COL_NAMES, 'Alex Kotorov', 1Bh,'C',COL_TEXT, '.',
+    1Bh,'Y',0,15,1Bh,'C',LGreen, '2023 year.', 0),
+
+
+  strMenu(*) byte data (
+    1Bh,'C',LMagenta, 1Bh,'Y',10,0, 'BOLDER DASH',
+    1Bh,'C',LWhite,
+    1Bh,'Y',12,MENU_SY+0, 'PLAY', 1Bh,'Y',12,MENU_SY+1, 'KEYBOARD',
+    1Bh,'Y',12,MENU_SY+2, 'SCORE', 1Bh,'Y',12,MENU_SY+3, 'ABOUT',
+    1Bh,'Y',12,MENU_SY+4, 'EXIT', 0),
+    /*
+    1Bh,'C',LCyan,1Bh,'Y',0,14,7Fh, 'A.Melentiev, Oleg N. Cher, 2021',
+    1Bh,'Y',2,15,'Ported by Andrey Khlus, 2023',0),
+    */
+
+
+
+  strMenuKeyb(*) byte data (
+    1Bh,'C',Yellow, 1Bh,'Y',3,2, 'Predefined:',
+    1Bh,'C',LWhite, 1Bh,'Y',7,3, 'Esc - break game', 1Bh,'Y',7,4,'F5 - restart level',
+    1Bh,'C',LCyan, 1Bh,'Y',3,6, 'Press four keys to define', 1Bh,'Y',7,7, 'direction control',0);
+
+
+/*
+  данные для файла рекордов
+*/
+declare
+  MAX_NAME literally '22',
+
+  TSCORE literally 'structure (
+    name(MAX_NAME) byte,
+    score address
+  )';
+
+declare
+  SCORE_ELEMS  literally '10',
+  ELEMS_IN_SEC literally '5',   /* количество TSCORE в одном секторе */
+
+  szCfgFile(*) byte data ('BOLDER  DAT'),
+  recScores(SCORE_ELEMS) TSCORE;
+
+
+
+
+ShowTitle: procedure;
+  declare
+    title$adr address,
+    title$b based title$adr byte,
+    size address,
+    (x, y) byte;
+
+    title$adr = .Rsrc_Title;
+    size = Rsrc_TitleSize;
+    do while size <> 0;
+        call Timer_Start((10*Timer_Mul/Timer_Div + 5)/10);
+        x = title$b;
+        title$adr = title$adr+1;
+        y = title$b;
+        title$adr = title$adr+1;
+        call GrApp_DrawTile(x, y, Rsrc_GetTileByNum(title$b));
+        title$adr = title$adr+1;
+        call Snd_TitleNext;
+
+        if Ctrl_PressAnyKey then
+            return;
+        size = size-1;
+        call Timer_Until;
+    end;
+end;
+
+
+PressAnyKey: procedure;
+  declare
+    ch byte;
+
+    ch = Ctrl_ReadKey;
+    call Snd_KeyPressed;
+end;
+
+
+
+/*
+  ввод имени игрока
+*/
+InputName: procedure (name);
+  declare
+    name address,
+    str based name(MAX_NAME) byte,
+    ch byte,
+    len byte;
+
+    len = 0;
+    do while len < MAX_NAME;
+        call Con_ShowCursor;
+        ch = Ctrl_ReadKey;
+
+        if ch = Ctrl_ScanEnter then
+            do;
+                if len > 0 then do;
+                    str(len) = 0;
+                    len = MAX_NAME;
+                end;
+            end;
+        else if ch = Ctrl_ScanBkSpc then
+            do;
+                if len > 0 then do;
+                    len = len - 1;
+                    call Con_HideCursor;
+                    call Con_BackSpc;
+                end;
+            end;
+        else if ch = Ctrl_ScanEsc then
+            do;
+                if len = 0 then
+                    do;
+                        call MOVE(7, .('Unknown'), name);
+                        len = 7;
+                    end;
+                str(len) = 0;
+                len = MAX_NAME;
+            end;
+        else
+            if (len < (MAX_NAME-1)) then
+                if (ch >= ' ') then
+                    if (ch <= '~') then do;
+                        call Con_HideCursor;
+                        call Con_WriteCh(ch);
+                        str(len) = ch;
+                        len = len+1;
+                    end;
+    end;
+    call Con_HideCursor;
+end;
+
+
+/*
+  поиск подходящего места в списке рекордов
+*/
+CheckOrder: procedure (score) byte;
+  declare
+    score address,
+    i byte;
+
+    if score > recScores(SCORE_ELEMS-1).score then do;
+        i = SCORE_ELEMS-2;
+        do while (i <> 0FFh) and (score > recScores(i).score);
+            call MOVE(SIZE(recScores(0)), .recScores(i), .recScores(i+1));
+            i = i - 1;
+        end;
+        return i+1;
+    end;
+    return 0FFh;
+end;
+
+
+/*
+  загрузка таблицы рекордов с диска
+*/
+LoadScores: procedure;
+  declare
+    buf(128) byte,
+    bufPtr address,
+    rec based bufPtr TSCORE,
+    secCrc based bufPtr(64) address,        /* CRC считанного с диска сектора  */
+    chkCrc address,                     /* реальное CRC сектора, для контроля чтения */
+    name(MAX_NAME) byte,
+    score address,
+    (i,j,n) byte,
+    sec byte,
+    idx byte,
+    ch byte;
+
+    /*
+      инициализируем по дефолту
+    */
+    i = 0;
+    do while i < SCORE_ELEMS;
+        recScores(i).name(0) = 0;
+        recScores(i).score = 0;
+        i = i + 1;
+    end;
+
+    /*
+      ищем в файле
+    */
+    if fOpen(.szCfgFile) <> 0 then do;
+        sec = 2;
+        do while sec > 0;
+            /* подгружаем сектор с 5 записями */
+            if fRead(.buf, 1) = 0 then
+                Break;
+            chkCrc = fCRC(.buf);
+            bufPtr = .buf;
+            if chkCrc <> secCrc(63) then
+                Break;
+
+            /* перебираем записи */
+            i = 0;
+            do while i < ELEMS_IN_SEC;
+                bufPtr = .buf(i * SIZE(rec));
+                /* извлекаем имя */
+                j = 0;
+                do while j < MAX_NAME-1;
+                    ch = rec.name(j);
+                    if (ch >= ' ') and (ch <= '~') then
+                        name(j) = ch;
+                    else
+                        Break;
+                    j = j + 1;
+                end;
+                name(j) = 0;
+
+                if j <> 0 then
+                    do;
+                        /* извлекаем очки и пробуем добавить в список рекордов */
+                        score = rec.score;
+                        n = CheckOrder(score);
+                        if n <> 255 then do;
+                            call MOVE(MAX_NAME, .name, .recScores(n).name);
+                            recScores(n).score = score;
+                        end;
+                    end;
+                else
+                    i = ELEMS_IN_SEC;
+
+                i = i + 1;
+            end;
+            sec = sec - 1;
+        end; /* while sec */
+        call fClose;
+    end;
+end;
+
+
+/*
+  вывод текущей таблицы рекордов на экран
+*/
+ShowScores: procedure;
+  declare
+    i byte,
+    ch byte;
+
+    call Con_WriteStr(.(1Bh,'C',LMagenta, 1Bh,'Y',13,1, 'SCORE', 0));
+    i = 0;
+    do while i < SCORE_ELEMS;
+        if recScores(i).name(0) <> 0 then do;
+            call Con_Colors(LCyan);
+            call Con_At(2, 4+i);
+            call Con_WriteStr(.recScores(i).name);
+            call Con_Colors(LWhite);
+            call Con_At(25, 4+i);
+            call Con_WriteDec(recScores(i).score);
+        end;
+        i = i + 1;
+    end;
+end;
+
+
+/*
+  запись таблицы рекордов в файл.
+*/
+SaveScores: procedure;
+  declare
+    buf(128) byte,
+    bufPtr address,
+    secCrc based bufPtr(64) address,        /* CRC считанного с диска сектора  */
+    n byte,
+    sec byte;
+
+    /*
+      в CP/M нет проверок, поэтому чтобы не создать дубликат файла,
+      его сначала нужно удалить.
+    */
+    n = fDelete(.szCfgFile);
+    /*
+      теперь создаем файл заново и скидываем в него результаты
+    */
+    if fCreate(.szCfgFile) <> 0 then do;
+        sec = 0;
+        do while sec < 2;
+            call MOVE(SIZE(recScores(0))*ELEMS_IN_SEC, .recScores(sec*ELEMS_IN_SEC), .buf);
+            bufPtr = .buf;
+            secCrc(63) = fCRC(.buf);
+            n = fWrite(.buf, 1);
+            sec = sec + 1;
+        end;
+        call fClose;
+    end;
+end;
+
+
+
+NewScore: procedure (score);
+  declare
+    score address,
+    n byte;
+
+    n = CheckOrder(score)    ;
+    if n <> 255 then do;
+        /*
+          результат игрока достоин таблицы рекордов
+        */
+        recScores(n).score = score;
+        recScores(n).name(0) = ' ';
+        recScores(n).name(1) = 0;
+        call GrApp_Cls;
+        call ShowScores;
+        call Con_At(2, 4 + n);
+        call InputName(.recScores(n).name);
+        call ShowScores;
+
+        /* сохраняем в файл */
+
+        call SaveScores;
+        call PressAnyKey;
+    end;
+end;
+
+
+
+
+
+
+DrawPointer: procedure;
+    call Con_Colors(White);
+    call Con_At(10, menu + MENU_SY);
+    call Con_WriteCh('>');
+end;
+
+HidePointer: procedure;
+    call Con_At(10, menu + MENU_SY);
+    call Con_WriteCh(' ');
+end;
+
+
+
+MenuGetKey: procedure byte;
+  declare
+    ch byte;
+
+    ch = Ctrl_ReadKey;
+    call Con_WriteKey(ch);
+    if (ch >= 'A') and (ch <= 'Z') then
+      ch = ch + ('a'-'A');
+    else if (ch >= '0') and (ch <= '9') then
+      ch = ch - ('0' - ' ');
+    return ch;
+end;
+
+
+
+MenuControll: procedure;
+  declare
+    ch byte,
+    (up, lf, rg, dn) byte,
+    loop byte;
+
+    loop = 1;
+
+    do while loop <> 0;
+        call GrApp_Cls;
+        call Con_WriteStr(.strMenuKeyb);
+
+        call Con_WriteStr(.(1Bh,'C',LWhite, 1Bh,'Y',7,9, 'Up    ',0)); up = MenuGetKey;
+        call Con_WriteStr(.(1Bh,'Y',7,10, 'Down  ',0)); dn = MenuGetKey;
+        call Con_WriteStr(.(1Bh,'Y',7,11, 'Left  ',0)); lf = MenuGetKey;
+        call Con_WriteStr(.(1Bh,'Y',7,12, 'Right ',0)); rg = MenuGetKey;
+
+        call Con_WriteStr(.(1Bh,'C',LCyan, 1Bh,'Y',1,14, 'Press Y if those are correct',0));
+
+        ch = Ctrl_ReadKey;
+
+        if (ch = 'y') or (ch = 'Y') then do;
+            Ctrl_KeyUp = up;
+            Ctrl_KeyDown = dn;
+            Ctrl_KeyLeft = lf;
+            Ctrl_KeyRight = rg;
+            loop = 0;
+            end;
+        else if ch = Ctrl_ScanEsc then
+            loop = 0;
+    end;
+    call GrApp_Cls;
+end;
+
+
+
+MenuSelectLevel: procedure byte;
+  declare
+    ch byte;
+
+    startLevel = 0;
+    call Con_WriteStr(.(1Bh,'C',LBlue, 1Bh,'Y',7,SELLEV_SY, 'Select start level', 1Bh,'Y',15,SELLEV_SY+1, 0));
+    call Con_WriteDec(startLevel);
+
+    do while 1;
+        ch = Ctrl_ReadKey;
+        if ch = Ctrl_ScanEsc then do;
+            call Con_WriteStr(.(1Bh,'Y',7,SELLEV_SY, '                  ', 1Bh,'Y',15,SELLEV_SY+1, '   ',0));
+            return 0;
+        end;
+        if ch = Ctrl_KeyLeft then
+            if startLevel > 0 then do;
+                startLevel = startLevel - 1;
+                call Con_At(15, SELLEV_SY+1);
+                call Con_WriteDec(startLevel);
+                call Con_WriteStr(.('  ',0));
+            end;
+        if ch = Ctrl_KeyRight then
+            if startLevel < Rsrc_MaxLevelNumber-1 then do;
+                startLevel = startLevel + 1;
+                call Con_At(15, SELLEV_SY+1);
+                call Con_WriteDec(startLevel);
+                call Con_WriteStr(.('  ',0));
+            end;
+        if ch = Ctrl_ScanEnter then
+            return 1;
+        if ch = Ctrl_ScanSpace then
+            return 1;
+    end;
+end;
+
+
+MainMenu: procedure byte;
+  declare
+    loop byte;
+
+    menu = 0;
+    do while 1;
+        call GrApp_Cls;
+        call Con_WriteStr(.strMenu);
+        do while Ctrl_PressAnyKey <> 0;
+            pressed = Ctrl_ReadKey;
+        end;
+
+        loop = 1;
+        do while loop <> 0;
+            call DrawPointer;
+            pressed = Ctrl_ReadKey;
+            if pressed = Ctrl_KeyUp then
+                if menu <> 0 then do;
+                    call HidePointer;
+                    menu = menu - 1;
+                    call DrawPointer;
+                    call Snd_KeyPressed;
+                end;
+            if pressed = Ctrl_KeyDown then
+                if menu <> 4 then do;
+                    call HidePointer;
+                    menu = menu + 1;
+                    call DrawPointer;
+                    call Snd_KeyPressed;
+                end;
+
+            if (pressed = Ctrl_ScanSpace) or (pressed = Ctrl_ScanEnter) then do;
+                call Snd_KeyPressed;
+
+                do case menu;
+                    if MenuSelectLevel then do;     /* 0 */
+                        return 1;
+                    end;
+                    do;                             /* 1 */
+                        call MenuControll;
+                        loop = 0;
+                    end;
+                    do;                             /* 2 */
+                        call GrApp_Cls;
+                        call ShowScores;
+                        call PressAnyKey;
+                        call GrApp_Cls;
+                        loop = 0;
+                    end;
+                    do;                             /* 3 */
+                        call GrApp_Cls;
+                        call Con_WriteStr(.strAbout);
+                        call PressAnyKey;
+                        call GrApp_Cls;
+                        loop = 0;
+                    end;
+                    do;                             /* 4 */
+                        call GrApp_Cls;
+                        return 0;
+                    end;
+                end; /* case */
+            end;
+        end; /* while */
+
+    end; /* while */
+end;
+
+
+
+doGame: procedure;
+  declare
+    key byte,
+    score address,
+    loop byte;
+
+    call GrApp_Cls;
+    call LoadScores;
+    do while 1;
+        if MainMenu = 0 then
+            Break;
+
+        call Ctrl_DelMenuKeyb;
+        score = lab_Play(startLevel);
+        /*
+          возвращаемся в главное меню
+        */
+        call Ctrl_SetMenuKeyb;
+        call NewScore(score);           /* добавляем результат в рекорды */
+        call GrApp_Cls;
+    end;
+end;
+
+
+
+declare
+  ch byte;
+
+
+
+MYENTRY:
+    /*
+      инициализируем систему
+    */
+    call Ctrl__init;
+    call GrApp__init;
+
+    /*
+      начинаем игру
+    */
+    call Ctrl_SetMenuKeyb;
+    call ShowTitle;
+    /*
+      главный игровой цикл
+    */
+    call doGame;
+
+    /*
+      восстанавливаем настройки по дефолту
+    */
+    call Ctrl_DelMenuKeyb;
+
+    call GrApp_Close;
+    call Ctrl_Close;
+
+    /*
+      и уходим
+    */
+    call Boot;
+
+end GAME;
+eof
+
+
+
+
+

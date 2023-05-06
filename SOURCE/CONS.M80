@@ -1,0 +1,377 @@
+$title  ('Console functions')
+        name    Console
+
+        cseg
+
+
+        public Con_WriteCh
+        public Con_BackSpc
+        public Con_WriteStr
+        public Con_WriteDec
+        public Con_WriteKey
+
+        public Con_ShowCursor
+        public Con_HideCursor
+
+        public Console_x
+        public Console_y
+        public Console_atr
+
+        public Con_At
+        public Con_Colors
+
+
+        extrn Rsrc_Font
+
+
+
+$include (:f1:video2.i80)
+
+
+
+;------------------------------------------------------------------------
+; установка позиции курсора
+; на входе:
+;    C - x
+;    E - y
+;------------------------------------------------------------------------
+Con_At:
+        lxi     H, Console_x
+        mov     M, C
+        mov     A, E
+        add     A               ; y * 2
+        add     E               ; y * 3
+        add     A               ; y * 6
+        add     A               ; y * 12
+        sta     Console_y
+        ret
+
+Con_ShowCursor:
+        mvi     C, '_'
+    switchcur:
+        call    Con_WriteCh
+        lxi     H, Console_x
+        dcr     M
+        ret
+
+Con_HideCursor:
+        mvi     C, ' '
+        jmp     switchcur
+
+
+;------------------------------------------------------------------------
+; установка байта-атрибута цвета
+; на входе:
+;    C - attr
+;------------------------------------------------------------------------
+Con_Colors:
+        lxi     H, Console_atr
+        mov     M, C
+        ret
+
+
+
+Con_BackSpc:
+        lda     Console_x
+        dcr     A
+        rm
+        sta     Console_x
+        push    PSW
+        mvi     C, 20h
+        call    Con_WriteCh
+        pop     PSW
+        sta     Console_x
+        ret
+
+
+
+;------------------------------------------------------------------------
+; вывод символа 16x12 на экран
+; на входе:
+;    C          - символ
+;    Console_x  - координаты
+;    Console_y
+;    Console_atr- байт атрибута цвета
+;------------------------------------------------------------------------
+Con_WriteCh:
+        mov     A, C
+        sui     20h
+        rm
+        mov     C, A
+        ; вычисляем адрес видеопамяти
+        lda     Console_y
+        mov     B, A
+        rar
+        rar
+        rar
+        ani     1Fh
+        mov     D, A            ; HI = (Y / 8) * 256
+        mov     A, B
+        ani     7
+        mov     E, A            ; LO = Y % 8
+        lda     Console_x
+        ral                     ; версия для текстовых координат X
+        ral
+        ral                     ; A = x * 8
+        ani     0F8h
+        lhld    pPixelsBuff
+        dad     D
+        mov     E, A
+        mvi     D, 0            ; LO = (Y % 8) + (X *8)
+        dad     D
+        xchg                    ; DE - &vidmem[x,y]
+
+        ; вычисляем адрес в массиве фонта
+        mov     L, C
+  con_chofs:
+        ; DE - &vidmem[x,y]
+        ;  L - char
+        mvi     H, 0            ; HL - char
+        dad     H               ; HL << 1
+        dad     H               ; HL << 2
+        mov     C, L
+        mov     B, H
+        dad     H
+        dad     B               ; HL = char * 12
+        lxi     B, Rsrc_Font
+        dad     B               ; HL = &Font[ch]
+
+        xchg
+        ; переносим битовый образ
+        push    H
+        mvi     C, 6
+    cpyfntdata:
+        ; выводим по 2 строки
+        ldax    D
+        mov     M, A
+        inx     D
+        inx     H
+        ldax    D
+        mov     M, A
+        inx     D
+        inx     H
+        mov     A, L
+        ani     7
+        cz      nextfchank
+        dcr     C
+        jnz     cpyfntdata
+        pop     H
+
+        ; выводим цвет
+        mov     A, H
+        xri     20h
+        mov     H, A            ; HL - адрес в массиве цвета
+        lda     Console_atr
+        mov     B, A
+        mvi     C, 6
+    cpycoldata:
+        mov     M, B
+        inx     H
+        mov     M, B
+        inx     H
+        mov     A, L
+        ani     7
+        cz      nextfchank
+        dcr     C
+        jnz     cpycoldata
+
+        ; увеличиваем текущий указатель курсора
+        lda     Console_x
+        inr     A
+        sta     Console_x
+        ret
+
+    nextfchank:
+        mvi     A, 248          ; HL += 256-8
+        add     L
+        mov     L, A
+        mov     A, H
+        aci     0
+        mov     H, A
+        ret
+
+
+;------------------------------------------------------------------------
+; вывод строки в текущую позицию
+; на входе:
+;    BC - строка, поддерживающая командные последовательности
+;           <ESC>Y<x><y> - прямое позиционирование курсора
+;           <ЕSС>F<b><f> - установка текущего цвета
+;           <ESC>C<f>    - установка цвета текста
+;------------------------------------------------------------------------
+Con_WriteStr:
+        ldax    B
+        ora     A
+        rz
+        cpi     27
+        jz      con_esc
+        push    B
+        mov     C, A
+        call    Con_WriteCh
+  con_nextch:
+        pop     B
+        inx     B
+        jmp     Con_WriteStr
+  con_esc:
+        inx     B
+        ldax    B
+        cpi     'F'
+        jz      con_setcol
+        mvi     L, 0
+        cpi     'C'
+        jz      con_setfore
+        cpi     'Y'
+        jnz     Con_WriteStr
+
+  con_setpos:   ; <ESC>Y<x><y> - прямое позиционирование курсора
+        inx     B
+        ldax    B
+        mov     D, A            ; D = x
+        inx     B
+        ldax    B
+        mov     E, A            ; E = y
+        push    B
+        mov     C, D
+        call    Con_At
+        jmp     con_nextch
+
+  con_setcol:   ; <ЕSС>F<b><f> - установка текущего цвета
+        inx     B
+        ldax    B
+        ani     0Fh
+        rlc
+        rlc
+        rlc
+        rlc
+        mov     L, A            ; L = background color
+
+  con_setfore:  ; <ESC>C<f>    - установка цвета текста
+        inx     B
+        ldax    B
+        inx     B
+        ani     0Fh
+        ora     L
+        sta     Console_atr
+        jmp     Con_WriteStr
+
+
+
+;------------------------------------------------------------------------
+; вывод беззнакового 16-битного числа на экран в текущую позицию
+; на входе:
+;    BC - число
+;------------------------------------------------------------------------
+Con_WriteDec:
+        mov     L, C
+        mov     H, B
+        lxi     D, wrDecBuf
+        push    D
+        mvi     A, '0'          ; флаг пропуска первых нулей
+        lxi     B, -10000
+        call    con_dectoa
+        lxi     B, -1000
+        call    con_dectoa
+        lxi     B, -100
+        call    con_dectoa
+        lxi     B, -10
+        call    con_dectoa
+        mov     A, L
+        ori     '0'
+        stax    D
+        inx     D
+        xra     A
+        stax    D
+        pop     B
+        call    Con_WriteStr
+        ret
+  con_dectoa:
+        push    D
+        mov     D, A
+        mvi     A, '0'-1
+    con_decloop:
+        inr     A
+        dad     B
+        jc      con_decloop
+        push    PSW
+        mov     A, L
+        sbb     C
+        mov     L, A
+        mov     A, H
+        sbb     B
+        mov     H, A
+        pop     PSW
+        cmp     D
+        pop     D
+        rz
+        stax    D
+        inx     D
+        mvi     A, 0FFh         ; закончили пропуск нулей
+        ret
+
+
+
+
+;------------------------------------------------------------------------
+; вывод на экран названия кнопки клавиатуры
+; на входе:
+;    C - код кнопки
+;------------------------------------------------------------------------
+Con_WriteKey:
+        mov     A, C
+        cpi     0B0h
+        jnc     con_wrkeystr
+        call    Con_WriteCh
+        ret
+
+    con_wrkeystr:
+        cpi     0D0h
+        jc      con_dokeystr
+        sui     20h             ; переводим код 0xDX в 0xBX
+    con_dokeystr:
+        sui     48
+        mov     L, A
+        add     A
+        add     A
+        mov     L, A
+        mvi     H, 0
+        lxi     D, tabKeyNames
+        dad     D
+
+        mov     C, M
+        inx     H
+        push    H
+        call    Con_WriteCh
+        pop     H
+        mov     C, M
+        inx     H
+        push    H
+        call    Con_WriteCh
+        pop     H
+        mov     C, M
+        inx     H
+        push    H
+        call    Con_WriteCh
+        pop     H
+        ret
+
+  tabKeyNames:  db 'Shf',0,'Ctl',0,'Grf',0,'Alf',0
+                db 'Fix',0,' F1',0,' F2',0,' F3',0
+                db ' F4',0,' F5',0,'Esc',0,'Tab',0
+                db 'Stp',0,' ',84h,' ',0,'Sel',0
+                db ' ',8Dh,8Eh,0
+                db '   ',0,'Clc',0,'Ins',0,'Del',0
+                db ' ',80h,' ',0,' ',81h,' ',0
+                db ' ',82h,' ',0,' ',83h,' ',0
+                db ' ',85h,' ',0,' ',86h,' ',0
+                db '[5]',0,' ',87h,' ',0,' ',88h,' ',0
+                db ' ',8Bh,8Ch,0,' '
+                db 89h,8Ah,0,'   ',0
+
+
+        DSEG
+  Console_x:    ds 1
+  Console_y:    ds 1
+  Console_atr:  ds 1
+
+  wrDecBuf:     ds 6
+end

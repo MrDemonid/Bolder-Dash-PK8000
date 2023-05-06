@@ -1,0 +1,772 @@
+$title  ('Graphics mode')
+
+        name    Graphics
+
+        cseg
+
+
+        public GrApp__init
+        public GrApp_Close
+
+        public GrApp_Cls
+        public GrApp_ClsCol
+        public GrApp_ScrollLeft
+        public GrApp_ScrollRight
+        public GrApp_DrawTile
+        public GrApp_HideTile
+
+
+        extrn Console_atr
+
+
+$include (:f1:video2.i80)
+
+
+
+
+
+
+; ----------------------------------------------------------------------------
+; установка видеорежима 2
+; ----------------------------------------------------------------------------
+GrApp__init:
+        call    GrApp_Cls
+        di
+        lxi     B, tabMode2
+        call    vidSetMode
+        ; инициализируем буфер экрана (768 байт)
+        call    vidInitScrBuf
+        ; инициализируем массив изображения
+        call    GrApp_Cls
+        ; устанавливаем палитру
+        mvi     C, 0Fh          ; белый текст на черном фоне
+        call    GrApp_ClsCol
+        ; set border color
+        xra     A
+        out     88h
+        ; гасим экран
+        in      86h
+        ani     0EFh
+        out     86h
+        ; собственно переходим в граф. режим
+        lda     pPixelsBuff+1
+        ani     11000000b
+        mov     B, A            ; B = биты 14-15 адреса видео-ОЗУ
+        in      84h
+        ani     00001111b
+        ora     B
+        ori     10h             ; выставляем бит граф. режима
+        out     84h
+        ei
+        ; разрешаем отображение на экран
+VidExit:
+        in      86h
+        ori     10h
+        out     86h
+        ret
+
+
+
+; ----------------------------------------------------------------------------
+; возврат в видеорежим 0
+; ----------------------------------------------------------------------------
+GrApp_Close:
+        call    GrApp_Cls
+        di
+        lxi     B, tabMode0
+        call    vidSetMode
+        call    GrApp_Cls
+        ; устанавливаем видеорежим 0
+        lda     pScrBuf0+1
+        ani     11000000b
+        mov     B, A            ; B = биты 14-15 адреса видео-ОЗУ
+        in      84h
+        ani     00001111b
+        ora     B
+        ori     20h             ; текстовый, 40 символов
+        out     84h
+        ei
+        ; разрешаем отображение курсора
+        mvi     A, 0
+        sta     flCurHide
+        call    VidExit
+        jmp     0
+
+
+; ----------------------------------------------------------------------------
+; установка параметров видеорежима из таблицы и программирование регистров
+; ----------------------------------------------------------------------------
+; in:
+;   BC  - структура VIDMODE
+vidSetMode:
+        ; переносим таблицу параметров видеорежима в системную память
+        ; чтобы функции BIOS работали нормально
+        lxi     H, pVideoParam
+        mvi     E, VIDPARSIZE
+    vsetlp:
+        ldax    B
+        inx     B
+        mov     M, A
+        inx     H
+        dcr     E
+        jnz     vsetlp
+        ldax    B
+        sta     bVideoMode
+        ; задаем адрес буфера экрана (режимы 0 и 1) в видео-ОЗУ
+        lda     pScrBuf0+1
+        rrc
+        rrc
+        out     90h
+        ; адрес знакогенератора (режимы 0 и 1) или буфера экрана (режим 2) в видео-ОЗУ
+        lda     pCharGen+1
+        rrc
+        rrc
+        out     91h
+        ; адрес массива графики (режим 2) в видео-ОЗУ
+        lda     pPixelsBuff+1
+        rrc
+        rrc
+        cma
+        out     92h
+        ; адрес массива цвета (режим 2) в видео-ОЗУ
+        lda     pColorsBuff+1
+        rrc
+        rrc
+        cma
+        out     93h
+        ret
+
+
+
+
+;------------------------------------------------------------------------
+; очистка экрана (для реж. 2 - очистка массива изображения (знакогенераторов))
+;------------------------------------------------------------------------
+GrApp_Cls:
+        lda     bVideoMode
+        cpi     2
+        jnz     clstxt
+        ; очистка экрана для режима 2
+        lhld    pPixelsBuff
+        mvi     E, 0
+        lxi     B, 6144         ; три массива изобр. (знакогенератора) по 2048 байт (3 по 256*8)
+    clsch2:
+        mov     M, E
+        inx     H
+        dcx     B
+        mov     A, C
+        ora     B
+        jnz     clsch2
+        ; теперь гасим палитру
+        mvi     E, 0Fh          ; дефолтный цвет
+    clrcl:
+        mov     A, E
+        sta     Console_atr     ; сохраняем цвет
+        lhld    pColorsBuff     ; HL - адрес таблицы цвета реж. 2
+        lxi     B, 6144         ; три массива изобр. (знакогенератора) по 2048 байт (3 по 256*8)
+    clschc:
+        mov     M, E
+        inx     H
+        dcx     B
+        mov     A, C
+        ora     B
+        jnz     clschc
+
+        jmp     rstcur
+
+    clstxt:
+        lhld    pScrBuf0
+        cpi     1
+        jnz     cls0
+        ; очистка экрана для режима 1
+        lxi     B, 768          ; 32*24
+        mvi     E, 20h
+    clslp:
+        mov     M, E
+        inx     H
+        dcx     B
+        mov     A, B
+        ora     C
+        jnz     clslp
+
+    rstcur:
+        ; устанавливаем курсор в верхний левый угол
+        xra     A
+        sta     bCurBkGr
+        sta     bCurPosX
+        sta     bCurPosY
+        shld    pCurStored
+        ret
+    cls0:
+        ; очистка экрана для режима 0
+        rnc
+        mvi     C, 24
+    cl0lp:
+        ; заполняем невидимую левую часть строки
+        lda     bHideLeft
+        mvi     B, 0
+        call    cl0fil
+        ; заполняем видимую часть строки
+        lda     bLogWidth
+        mvi     B, ' '
+        call    cl0fil
+        ; заполняем правую часть строки
+        lda     bHideRight
+        sui     5
+        call    cl0fil
+        mvi     A, 5       ;5     ; заканчиваем строку кодами '5 6 0D 0E 00'
+        mov     M, A
+        inr     A          ;6
+        inx     H
+        mov     M, A
+        mvi     A, 0Dh     ;0D
+        inx     H
+        mov     M, A
+        inr     A          ;0E
+        inx     H
+        mov     M, A
+        inx     H
+        mvi     B, 0
+        mov     M, B
+        inx     H
+        ; переходим к следующей строке
+        dcr     C
+        jnz     cl0lp
+        lhld    pScrBuf0
+        jmp     rstcur
+
+    cl0fil:
+        ana     A
+        rz
+        mov     M, B
+        inx     H
+        dcr     A
+        jnz     cl0fil
+        ret
+
+
+;------------------------------------------------------------------------
+; заполнение массива цвета
+;------------------------------------------------------------------------
+; на входе:
+;   C   - цвет фона и текста
+GrApp_ClsCol:
+        mov     E, C
+        jmp     clrcl
+
+
+
+; ----------------------------------------------------------------------------
+;  инициализация буфера экрана дефолтным значением
+; ----------------------------------------------------------------------------
+vidInitScrBuf:
+        lhld    pScrBuf2
+        mvi     B, 0
+        mvi     C, 3
+    @fivbm:
+        mov     M, B
+        inx     H
+        inr     B
+        jnz     @fivbm
+        dcr     C
+        jnz     @fivbm
+        ret
+
+
+
+
+
+;------------------------------------------------------------------------
+; прокрутка экрана влево на одно знакоместо
+;------------------------------------------------------------------------
+GrApp_ScrollLeft:
+        lxi     H, 0
+        dad     SP
+        shld    @scrllfdone+1
+        di
+        lhld    pScrBuf2
+        sphl
+        inx     SP
+
+        mvi     A, 24
+    @scrllfhor:
+        mvi     B, 32/2-1
+        mov     C, M            ; запоминаем первый символ
+    @scrllfver:
+        pop     D
+        mov     M, E
+        inx     H
+        mov     M, D
+        inx     H
+        dcr     B
+        jnz     @scrllfver
+        pop     D
+        mov     M, E
+        inx     H
+        mov     M, C            ; в последний байт строки переносим первый символ
+        inx     H
+        ; переходим на следующую строку
+        dcr     A
+        jnz     @scrllfhor
+    @scrllfdone:
+        lxi     SP, 0
+        ei
+        ret
+
+
+;------------------------------------------------------------------------
+; прокрутка экрана вправо на одно знакоместо
+;------------------------------------------------------------------------
+GrApp_ScrollRight:
+        lxi     H, 0
+        dad     SP
+        shld    @scrlrgdone+1
+        di
+        lhld    pScrBuf2
+        lxi     B, 32*24
+        dad     B
+        sphl                    ; SP - dest
+        dcx     H               ; HL - src
+        mvi     A, 24
+    @scrlrgver:
+        mvi     B, 32/2-1
+        mov     C, M            ; запоминаем первый символ
+        dcx     H
+    @scrlrghor:
+        mov     D, M
+        dcx     H
+        mov     E, M
+        dcx     H
+        push    D
+        dcr     B
+        jnz     @scrlrghor
+        mov     E, C            ; последний символ теперь на первую позицию
+        mov     D, M
+        dcx     H
+        push    D
+        ; переходим на следующую строку
+        dcr     A
+        jnz     @scrlrgver
+    @scrlrgdone:
+        lxi     SP, 0
+        ei
+        ret
+
+
+
+
+;------------------------------------------------------------------------
+; вывод тайла на экран в заданную позицию
+; на входе:
+;    [SP+2] - x    [0..31]
+;         C - y    [0..31]
+;        DE - tile
+;------------------------------------------------------------------------
+GrApp_DrawTile:
+        pop     H
+        xthl                    ; L - x
+        ; L - x
+        ; C - y
+        ; DE - tile
+        ; переводим Y из логических координат в пиксельные
+        mov     A, C
+        add     A
+        add     C               ; y * 3
+        add     A
+        mov     B, A            ; B = y * 6
+        mov     C, L            ; C = x
+        ; вычисляем адрес видеопамяти
+        rar
+        rar
+        rar
+        ani     1Fh
+        mov     H, A            ; HI = (Y / 8) * 256
+
+        mov     A, B
+        ani     7
+        mov     L, A            ; LO = Y % 8
+
+        mov     A, C
+        ral                     ; версия для текстовых координат X
+        ral
+        ral                     ; A = x * 8
+        ani     0F8h
+        add     L
+        mov     L, A            ; LO = (Y % 8) + (X *8)
+
+        ; прибавляем текущий адрес видеопамяти
+        lda     pPixelsBuff
+        add     L
+        mov     C, A
+        lda     pPixelsBuff+1
+        adc     H
+        mov     B, A
+
+        ; BC - vid mem
+        ; DE - tile
+
+        ; переносим битовый образ
+        call    cpydata
+        ; выводим цвет
+        mov     A, B
+        xri     20h
+        mov     B, A            ; HL - адрес в массиве цвета
+        call    cpydata
+        ret
+
+    cpydata:
+        ; BC - vid mem
+        ; DE - tile
+        lxi     H, 0
+        dad     SP
+        shld    @drwtiledone+1
+        xchg
+        di
+        sphl                    ; SP - tile
+        ; выводим левую часть спрайта (12 линий)
+        mov     H, B
+        mov     L, C
+        ; выводим 2 строки
+        pop     D
+        mov     M, E
+        inx     H
+        mov     M, D
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     drwtl1
+        lxi     D, 248
+        dad     D               ; HL += 256-8
+    drwtl1:
+        ; выводим 2 строки
+        pop     D
+        mov     M, E
+        inx     H
+        mov     M, D
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     drwtl2
+        lxi     D, 248
+        dad     D               ; HL += 256-8
+    drwtl2:
+        ; выводим 2 строки
+        pop     D
+        mov     M, E
+        inx     H
+        mov     M, D
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     drwtl3
+        lxi     D, 248          ; HL += 256-8
+        dad     D
+    drwtl3:
+        ; выводим 2 строки
+        pop     D
+        mov     M, E
+        inx     H
+        mov     M, D
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     drwtl4
+        lxi     D, 248          ; HL += 256-8
+        dad     D
+    drwtl4:
+        ; выводим 2 строки
+        pop     D
+        mov     M, E
+        inx     H
+        mov     M, D
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     drwtl5
+        lxi     D, 248          ; HL += 256-8
+        dad     D
+    drwtl5:
+        ; выводим 2 строки
+        pop     D
+        mov     M, E
+        inx     H
+        mov     M, D
+
+        ; выводим правую часть спрайта (12 линий)
+        lxi     H, 8
+        dad     B                ; HL = BC + 8
+
+        ; выводим 2 строки
+        pop     D
+        mov     M, E
+        inx     H
+        mov     M, D
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     drwtl6
+        lxi     D, 248
+        dad     D               ; HL += 256-8
+    drwtl6:
+        ; выводим 2 строки
+        pop     D
+        mov     M, E
+        inx     H
+        mov     M, D
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     drwtl7
+        lxi     D, 248
+        dad     D               ; HL += 256-8
+    drwtl7:
+        ; выводим 2 строки
+        pop     D
+        mov     M, E
+        inx     H
+        mov     M, D
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     drwtl8
+        lxi     D, 248
+        dad     D               ; HL += 256-8
+    drwtl8:
+        ; выводим 2 строки
+        pop     D
+        mov     M, E
+        inx     H
+        mov     M, D
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     drwtl9
+        lxi     D, 248
+        dad     D               ; HL += 256-8
+    drwtl9:
+        ; выводим 2 строки
+        pop     D
+        mov     M, E
+        inx     H
+        mov     M, D
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     drwtlA
+        lxi     D, 248
+        dad     D               ; HL += 256-8
+    drwtlA:
+        ; выводим 2 строки
+        pop     D
+        mov     M, E
+        inx     H
+        mov     M, D
+
+        lxi     H, 0
+        dad     SP
+        xchg
+    @drwtiledone:
+
+        lxi     SP, 0
+        ei
+        ret
+
+
+
+;------------------------------------------------------------------------
+; гасит тайл на экране в заданной позиции
+; на входе:
+;    C - x    [0..31]
+;    E - y    [0..31]
+;------------------------------------------------------------------------
+GrApp_HideTile:
+
+        ; переводим Y из логических координат в пиксельные
+        mov     A, E
+        add     A
+        add     E      ; * 3
+        add     A
+        mov     B, A   ; B = y * 6
+
+        ; вычисляем адрес видеопамяти
+        rar
+        rar
+        rar
+        ani     1Fh
+        mov     D, A            ; HI = (Y / 8) * 256
+
+        mov     A, B
+        ani     7
+        mov     E, A            ; LO = Y % 8
+
+        mov     A, C
+        ral                     ; версия для текстовых координат X
+        ral
+        ral                     ; A = x * 8
+        ani     0F8h
+        add     E
+        mov     E, A            ; LO = (Y % 8) + (X *8)
+
+        ; прибавляем текущий адрес массива цвета
+        lhld    pColorsBuff
+        dad     D
+
+        lxi     D, 248
+        mvi     C, 0
+        ; выводим левую часть спрайта (12 линий)
+        push    H
+        ; выводим 2 строки
+        mov     M, C
+        inx     H
+        mov     M, C
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     nxtcc1
+        dad     D               ; HL += 256-8
+    nxtcc1:
+        ; выводим 2 строки
+        mov     M, C
+        inx     H
+        mov     M, C
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     nxtcc2
+        dad     D               ; HL += 256-8
+    nxtcc2:
+        ; выводим 2 строки
+        mov     M, C
+        inx     H
+        mov     M, C
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     nxtcc3
+        dad     D               ; HL += 256-8
+    nxtcc3:
+        ; выводим 2 строки
+        mov     M, C
+        inx     H
+        mov     M, C
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     nxtcc4
+        dad     D               ; HL += 256-8
+    nxtcc4:
+        ; выводим 2 строки
+        mov     M, C
+        inx     H
+        mov     M, C
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     nxtcc5
+        dad     D               ; HL += 256-8
+    nxtcc5:
+        ; выводим 2 строки
+        mov     M, C
+        inx     H
+        mov     M, C
+
+
+        ; выводим правую часть спрайта (12 линий)
+        pop     H
+        mvi     A, 8
+        add     L
+        mov     L, A             ; HL = BC + 8
+
+        ; выводим 2 строки
+        mov     M, C
+        inx     H
+        mov     M, C
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     nxtcc6
+        dad     D               ; HL += 256-8
+    nxtcc6:
+        ; выводим 2 строки
+        mov     M, C
+        inx     H
+        mov     M, C
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     nxtcc7
+        dad     D               ; HL += 256-8
+    nxtcc7:
+        ; выводим 2 строки
+        mov     M, C
+        inx     H
+        mov     M, C
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     nxtcc8
+        dad     D               ; HL += 256-8
+    nxtcc8:
+        ; выводим 2 строки
+        mov     M, C
+        inx     H
+        mov     M, C
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     nxtcc9
+        dad     D               ; HL += 256-8
+    nxtcc9:
+        ; выводим 2 строки
+        mov     M, C
+        inx     H
+        mov     M, C
+        inx     H
+        mov     A, L
+        ani     7
+        jnz     nxtccA
+        dad     D               ; HL += 256-8
+    nxtccA:
+        ; выводим 2 строки
+        mov     M, C
+        inx     H
+        mov     M, C
+        ret
+
+
+
+
+
+
+
+
+; таблицы параметров видеорежимов 0 и 2
+tabMode0:       db 64           ; полная ширина экрана, включая не отображаемые области
+                db 0            ; кол. не отображаемых символов слева
+                db 40           ; видимая ширина экрана
+                db 24           ; кол. строк экрана
+                db 24           ; кол. пропускаемых символов справа
+                dw 0E000h       ; адрес буфера экрана (реж. 0 и 1)
+                dw 0E400h       ; адрес таблицы цвета (реж. 1)
+                dw 0F000h       ; адрес знакогенератора (реж. 0 и 1)
+                dw 0
+                dw 0
+                dw 0
+                dw 0
+                db 0            ; номер видеорежима
+
+tabMode2:       db 32           ; полная ширина экрана, включая не отображаемые области
+                db 0            ; кол. не отображаемых символов слева
+                db 32           ; видимая ширина экрана
+                db 24           ; кол. строк экрана
+                db 00           ; кол. пропускаемых символов справа
+                dw 0
+                dw 0
+                dw SCRBUF_ADDR  ; адрес буфера экрана (реж. 2)
+                dw 0
+                dw 0
+                dw PIXBUF_ADDR  ; массив изображения для режима 2
+                dw COLBUF_ADDR  ; массив цвета для режима 2
+                db 2            ; номер видеорежима
+
+end

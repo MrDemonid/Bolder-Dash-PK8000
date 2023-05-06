@@ -1,0 +1,81 @@
+declare
+  TMONSTR literally 'structure (
+    mx byte,
+    my byte,
+    dx byte,
+    dy byte
+  )';
+
+
+declare
+  Rsrc_TitleSize      literally  '114', /* cells, a cell occupies 3 bytes */
+  Rsrc_TitleSizeFull  literally  '342', /* Rsrc_TitleSize * 3 */
+  Rsrc_TileSize       literally   '48', /* bytes */
+  Rsrc_TileSizeFull   literally  '864', /* Rsrc_TileSize * (_LastTileNum + 1) */
+  Rsrc_TileWidth      literally   '16', /* pixels */
+  Rsrc_TileHeight     literally   '12', /* pixels */
+  Rsrc_MaxLevelNumber literally   '76',
+  Rsrc_LevelSize      literally   '96', /* bytes */
+  Rsrc_LevelSizeFull  literally '7296', /* Rsrc_LevelSize*Rsrc_MaxLevelNumber */
+  Rsrc_CharSize       literally   '12', /* bytes */
+  Rsrc_FontSize       literally '1332', /* ((96+15) * Rsrc_CharSize) bytes */
+  LastTileNum         literally   '17',
+  Rsrc_FieldWidth     literally   '16', /* размерность массива уровня */
+  Rsrc_FieldHeight    literally   '16',
+  Rsrc_FieldSize      literally  '256', /* Rsrc_FieldWidth * Rsrc_FieldHeight */
+  Rsrc_LogWidth       literally   '32', /* логическая размерность уровня */
+  Rsrc_LogHeight      literally   '32';
+
+declare
+  Rsrc_field(Rsrc_FieldSize)      byte external,
+  Rsrc_Title(Rsrc_TitleSizeFull)  byte external,
+  Rsrc_Levels(Rsrc_LevelSizeFull) byte external,
+  Rsrc_Font(Rsrc_FontSize)        byte external,
+  Rsrc_Tiles(Rsrc_TileSizeFull)   byte external,
+  Rsrc_CrossX(4)                  byte external,
+  Rsrc_CrossY(4)                  byte external,
+  Rsrc_Cross2X(4)                 byte external,
+  Rsrc_Cross2Y(4)                 byte external;
+
+
+declare /* в ©«л */
+  Tile_None(48)       byte external,
+  Tile_Grass(48)      byte external,
+  Tile_Stone(48)      byte external,
+  Tile_Almas(48)      byte external,
+  Tile_StopMan(48)    byte external,
+  Tile_Wall(48)       byte external,
+  Tile_Mina(48)       byte external,
+  Tile_Babo(48)       byte external,
+  Tile_LeftMan(48)    byte external,
+  Tile_LeftMan1(48)   byte external,
+  Tile_RightMan(48)   byte external,
+  Tile_RightMan1(48)  byte external,
+  Tile_UpMan(48)      byte external,
+  Tile_UpMan1(48)     byte external,
+  Tile_DownMan(48)    byte external,
+  Tile_DownMan1(48)   byte external,
+  Tile_Mina1(48)      byte external,
+  Tile_Babo1(48)      byte external;
+
+
+
+
+Rsrc_GetTileByNum: procedure(idxTile) address external;
+  declare
+    idxTile byte;
+end;
+
+Rsrc_GetCell: procedure (x, y) byte external;
+  declare
+    (x, y) byte;
+end;
+
+Rsrc_SetCell: procedure (x, y, cell) external;
+  declare
+    (x, y) byte,
+    cell byte;
+end;
+
+
+

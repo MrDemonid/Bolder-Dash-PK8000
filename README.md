@@ -1,4 +1,4 @@
-# Game-Bolder-Dash
+# Bolder-Dash-PK8000
 My port of the game "Bolder Dash" for the Soviet computer ПК8000 (PK8000).
 
 This game called "Bolder Dash" was originally developed by A.V.Melentiev

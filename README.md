@@ -9,4 +9,5 @@ Oleg N. Cher ported Mutel's game to the ZX Spectrum.
 The game was adapted for the PK8000 by Andrey Hlus. All levels for the game
 are provided by Alex Kotorov.
 
-Programming language: PL/M-80. The build requires the PL/M-80 compiler version 5.1 and the LINK version 4.0.
+Programming language: PL/M-80. 
+The build requires the PL/M-80 Tools: https://github.com/MrDemonid/PL-M-80-Tools

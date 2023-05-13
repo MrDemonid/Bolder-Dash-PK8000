@@ -1,4 +1,4 @@
-$title  ('Wait timer routine')
+$title  ('Wait timer routines')
         name    Timer
 
         cseg

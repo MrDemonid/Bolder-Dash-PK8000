@@ -1,4 +1,4 @@
-$title  ('Console functions')
+$title  ('Console routines')
         name    Console
 
         cseg

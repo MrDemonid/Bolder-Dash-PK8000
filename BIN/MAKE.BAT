@@ -30,10 +30,10 @@ cls
 %PLMBIN%\ASM80 :f1:grapp.m80
 if errorlevel == 1 goto error
 
-%PLMBIN%\ASM80 :f1:ctrl.m80
+%PLMBIN%\ASM80 :f1:control.m80
 if errorlevel == 1 goto error
 
-%PLMBIN%\ASM80 :f1:cons.m80
+%PLMBIN%\ASM80 :f1:console.m80
 if errorlevel == 1 goto error
 
 %PLMBIN%\ASM80 :f1:rsrc.m80
@@ -49,7 +49,7 @@ if errorlevel == 1 goto error
 if errorlevel == 1 goto error
 
 
-%PLMBIN%\PLM80 :f1:labir.plm PAGEWIDTH(120)
+%PLMBIN%\PLM80 :f1:labirint.plm PAGEWIDTH(120)
 if errorlevel == 1 goto error
 
 %PLMBIN%\PLM80 :f1:bolder.plm PAGEWIDTH(120)
@@ -61,12 +61,20 @@ echo ===========================================
 
 pause
 cls
-@ECHO ON
 
 %PLMBIN%\link @:f1:link.txt
-%PLMBIN%\LOCATE :f1:bolder.lnk TO :f1:bolder.kz CODE(100H) STACKSIZE(100) MAP PRINT(:f1:bolder.tra)
+if errorlevel == 1 goto error
+
+:: variant for manual jmp to entry point in source code
+::%PLMBIN%\LOCATE :f1:bolder.lnk TO :f1:bolder.kz CODE(100H) STACKSIZE(100) MAP PRINT(:f1:bolder.tra)
+
+:: variant for automatic generate jmp to entry point
+%PLMBIN%\LOCATE :f1:bolder.lnk TO :f1:bolder.kz CODE(103H) STACKSIZE(100) MAP PRINT(:f1:bolder.tra)
+if errorlevel == 1 goto error
+
 %PLMBIN%\OBJCPM :f1:bolder.kz
-@ECHO OFF
+if errorlevel == 1 goto error
+
 copy /b %SOURCES%\bolder.com .\bolder.com
 if errorlevel == 1 goto error
 

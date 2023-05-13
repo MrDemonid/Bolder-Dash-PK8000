@@ -8,22 +8,24 @@ GAME: DO;
 
 $CODE
 
-/* формируем переход на начало кода */
-declare JUMP byte data(0C3h);
-declare JADR address data(.MYENTRY); /* with default CP/M system stack */
-/*declare JADR address data(.MYENTRY-3);  with stack initialize */
+/*
+  формируем переход на начало кода.
+  Точнее могли бы, но в данном случае переход сформирует OBJCPM.
+*/
+/* declare JUMP byte data(0C3h);
+/* declare JADR address data(.MYENTRY);    with default CP/M system stack */
+/* declare JADR address data(.MYENTRY-3);  with stack initialize */
 
+$INCLUDE(:F1:FILEIO.LIT)
 
-$INCLUDE(:F1:FILEIO.EXT)
+$INCLUDE(:F1:CONTROL.LIT)
+$INCLUDE(:F1:GRAPP.LIT)
+$INCLUDE(:F1:CONSOLE.LIT)
+$INCLUDE(:F1:RSRC.LIT)
+$INCLUDE(:F1:SOUND.LIT)
+$INCLUDE(:F1:TIMER.LIT)
 
-$INCLUDE(:F1:CTRL.EXT)
-$INCLUDE(:F1:GRAPP.EXT)
-$INCLUDE(:F1:CONS.EXT)
-$INCLUDE(:F1:RSRC.EXT)
-$INCLUDE(:F1:SOUND.EXT)
-$INCLUDE(:F1:TIMER.EXT)
-
-$INCLUDE(:F1:LABIR.EXT)
+$INCLUDE(:F1:LABIRINT.LIT)
 
 
 

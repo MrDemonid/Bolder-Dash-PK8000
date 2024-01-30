@@ -2,7 +2,8 @@
 BREAK ON
 
 :: set PL/M tools and sources paths
-set SOURCES=..\SOURCE
+set SOURCES=.
+set BINARY=..\BIN
 
 if %PLM80% == "" goto nodef
 set PLMBIN=%PLM80%\BIN
@@ -11,6 +12,9 @@ goto clearprev
 
 :nodef
 :: !!! predefined path not found, use default !!!
+echo WARNING!!! Path for PL/M not found!
+echo Use default path
+pause
 set PLMBIN=C:\PLMTOOL\BIN
 set PLMLIB=C:\PLMTOOL\LIB
 
@@ -18,6 +22,7 @@ set PLMLIB=C:\PLMTOOL\LIB
 :: clear previous files
 del %SOURCES%\*.obj
 del %SOURCES%\*.lst
+del %BINARY%\bolder.com
 del bolder.com
 
 
@@ -75,7 +80,7 @@ if errorlevel == 1 goto error
 %PLMBIN%\OBJCPM :f1:bolder.kz
 if errorlevel == 1 goto error
 
-copy /b %SOURCES%\bolder.com .\bolder.com
+copy /b %SOURCES%\bolder.com %BINARY%\bolder.com
 if errorlevel == 1 goto error
 
 :: copy to image file of HDD, for emulator EMU80
